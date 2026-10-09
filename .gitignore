@@ -23,7 +23,7 @@ product
 /build
 .idea/
 # local sqlite snapshot (contains API keys — ship via `vercel` CLI upload, not git)
-/db/
+#/db/
 # DATA_DIR runtime artifacts — DATA_DIR defaults to the project root in repo checkouts
 /jwt-secret
 /machine-id
@@ -106,7 +106,7 @@ graphify-out/*
 .codegraph/
 .PR/
 .next-analyze/*
-
+.zcode
 # Kiro local workspace state
 .kiro/
 9router-*
