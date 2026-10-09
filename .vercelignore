@@ -1,0 +1,8 @@
+# Keep the upload minimal — but NOT db/: the local sqlite snapshot must ship
+# with the build (Vercel CLI upload; db/ is git-ignored, not vercel-ignored).
+.git
+.vercel
+.next
+node_modules
+.gitbook
+*.log

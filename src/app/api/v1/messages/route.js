@@ -1,6 +1,9 @@
 import { handleChat } from "@/sse/handlers/chat.js";
 import { initTranslators } from "open-sse/translator/index.js";
 
+// LLM streaming / SSE runs long — Vercel function duration ceiling.
+export const maxDuration = 300;
+
 let initialized = false;
 
 /**

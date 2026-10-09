@@ -22,6 +22,26 @@ product
 # production
 /build
 .idea/
+# local sqlite snapshot (contains API keys — ship via `vercel` CLI upload, not git)
+/db/
+# DATA_DIR runtime artifacts — DATA_DIR defaults to the project root in repo checkouts
+/jwt-secret
+/machine-id
+/model-catalog*.json
+/db.json
+/usage.json
+/disabledModels.json
+/request-details.json
+/headroom/
+/mitm/
+/pxpipe/
+/tunnel/
+/tailscale/
+/logs/
+/auth/
+/bin/
+/runtime/
+/update/
 
 # misc
 .DS_Store

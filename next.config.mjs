@@ -9,10 +9,13 @@ const tracingRoot = process.env.NEXT_TRACING_ROOT_MODE === "workspace"
   : projectRoot;
 const proxyClientMaxBodySize = process.env.NINEROUTER_PROXY_CLIENT_MAX_BODY_SIZE || "128mb";
 
+const isVercel = process.env.VERCEL === "1" || process.env.VERCEL === "true";
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   distDir: process.env.NEXT_DIST_DIR || ".next",
-  output: "standalone",
+  // Vercel builds/serves its own output — standalone is only for Docker/`next start`.
+  output: isVercel ? undefined : "standalone",
   // `open` must stay external. It derives its own directory from `import.meta.url`, and
   // webpack replaces that with the absolute path of the BUILD machine as a string literal.
   // A release built on macOS therefore ships `file:///Users/.../open/index.js`, which
@@ -31,6 +34,9 @@ const nextConfig = {
   outputFileTracingExcludes: {
     "*": ["./gitbook/**/*"]
   },
+  // Bake the local data snapshot (db/data.sqlite …) into the function bundle —
+  // Vercel's FS is read-only at runtime, opened via DB_READONLY sql.js snapshot mode.
+  ...(isVercel ? { outputFileTracingIncludes: { "*": ["./db/**/*"] } } : {}),
   images: {
     unoptimized: true
   },

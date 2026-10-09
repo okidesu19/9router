@@ -11,7 +11,11 @@ async function loadSql() {
 }
 
 export async function createSqlJsAdapter(filePath) {
+  const readonly = process.env.DB_READONLY === "1";
   const SQLLib = await loadSql();
+  if (readonly && !fs.existsSync(filePath)) {
+    throw new Error(`[DB] snapshot file missing: ${filePath} — run the app locally first, then deploy`);
+  }
   const buf = fs.existsSync(filePath) ? fs.readFileSync(filePath) : null;
   const db = new SQLLib.Database(buf);
   db.exec(PRAGMA_SQL);
@@ -22,12 +26,14 @@ export async function createSqlJsAdapter(filePath) {
   const SAVE_DEBOUNCE_MS = 100;
 
   function persist() {
+    if (readonly) return;
     const data = db.export();
     fs.writeFileSync(filePath, Buffer.from(data));
     dirty = false;
   }
 
   function scheduleSave() {
+    if (readonly) return;
     dirty = true;
     if (saveTimer) clearTimeout(saveTimer);
     saveTimer = setTimeout(() => {

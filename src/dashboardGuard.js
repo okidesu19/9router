@@ -1,11 +1,25 @@
 import { NextResponse } from "next/server";
 import { getSettings, validateApiKey } from "@/lib/localDb";
+import { IS_SERVERLESS } from "@/lib/serverless";
 import { getConsistentMachineId } from "@/shared/utils/machineId";
 import { verifyDashboardAuthToken } from "@/lib/auth/dashboardSession";
 import { hasTrustedPeerHeaders } from "@/lib/auth/trustedPeer";
 
 const CLI_TOKEN_HEADER = "x-9r-cli-token";
 const CLI_TOKEN_SALT = "9r-cli-auth";
+
+// Mounted local-only features: tunnels, MCP stdio bridges, cli-tools (home-dir writes),
+// OAuth loopback proxy servers, in-memory console log stream, shutdown/updater spawns.
+const SERVERLESS_DISABLED_PREFIXES = [
+  "/api/tunnel",
+  "/api/mcp",
+  "/api/cli-tools",
+  "/api/oauth",
+  "/api/shutdown",
+  "/api/translator/console-logs",
+  "/api/version/update",
+  "/api/version/shutdown",
+];
 
 let cachedCliToken = null;
 async function getCliToken() {
@@ -206,6 +220,12 @@ export const __test__ = {
 
 export async function proxy(request) {
   const { pathname } = request.nextUrl;
+
+  // Serverless (Vercel): features needing child processes / local listeners / home-dir
+  // writes are unavailable — fail fast with 503 instead of 500s from listen/spawn.
+  if (IS_SERVERLESS && SERVERLESS_DISABLED_PREFIXES.some((p) => pathname.startsWith(p))) {
+    return NextResponse.json({ error: "feature not available on serverless" }, { status: 503 });
+  }
 
   // Local-only gate for spawn-capable / host-secret routes.
   if (LOCAL_ONLY_PATHS.some((p) => pathname.startsWith(p))) {

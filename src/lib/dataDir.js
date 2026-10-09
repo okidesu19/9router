@@ -5,6 +5,11 @@ import os from "os";
 const APP_NAME = "9router";
 
 function defaultDir() {
+  // In-repo runs (dev/start/Vercel) keep data inside the project: <project-dir>/db/data.sqlite.
+  // ponytail: cwd-marker detection; global CLI installs (run from any dir) still fall back to home.
+  try {
+    if (fs.existsSync(path.join(process.cwd(), "next.config.mjs"))) return process.cwd();
+  } catch {}
   if (process.platform === "win32") {
     return path.join(process.env.APPDATA || path.join(os.homedir(), "AppData", "Roaming"), APP_NAME);
   }

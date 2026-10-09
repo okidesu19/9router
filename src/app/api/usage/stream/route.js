@@ -1,5 +1,8 @@
 import { getUsageStats, statsEmitter, getActiveRequests } from "@/lib/usageDb";
 
+// LLM streaming / SSE runs long — Vercel function duration ceiling.
+export const maxDuration = 300;
+
 export const dynamic = "force-dynamic";
 
 export async function GET() {

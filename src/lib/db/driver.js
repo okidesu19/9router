@@ -58,13 +58,21 @@ async function trySqlJs() {
 
 async function initAdapter() {
   ensureDirs();
-  // Order per runtime:
-  //   Bun:  bun:sqlite → sql.js
-  //   Node: better-sqlite3 → node:sqlite (≥22.5) → sql.js
-  let adapter = await tryBunSqlite();
-  if (!adapter) adapter = await tryBetterSqlite();
-  if (!adapter) adapter = await tryNodeSqlite();
-  if (!adapter) adapter = await trySqlJs();
+  // Snapshot mode (Vercel): baked db file sits on a read-only FS, so native
+  // drivers (O_RDWR open → EROFS) are skipped — sql.js loads bytes, never persists.
+  const readonly = process.env.DB_READONLY === "1";
+  let adapter = null;
+  if (readonly) {
+    adapter = await trySqlJs();
+  } else {
+    // Order per runtime:
+    //   Bun:  bun:sqlite → sql.js
+    //   Node: better-sqlite3 → node:sqlite (≥22.5) → sql.js
+    adapter = await tryBunSqlite();
+    if (!adapter) adapter = await tryBetterSqlite();
+    if (!adapter) adapter = await tryNodeSqlite();
+    if (!adapter) adapter = await trySqlJs();
+  }
   if (!adapter) throw new Error("[DB] No SQLite driver available (bun/better/node/sql.js all failed)");
 
   if (!state.logged) {
