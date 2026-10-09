@@ -106,7 +106,7 @@ graphify-out/*
 .codegraph/
 .PR/
 .next-analyze/*
-.zcode
+
 # Kiro local workspace state
 .kiro/
 9router-*
@@ -121,3 +121,4 @@ graphify-out/*
 .start-dev.ps1
 start-dev-silent.cjs
 debug.log
+/.zcode/

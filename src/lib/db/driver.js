@@ -58,12 +58,13 @@ async function trySqlJs() {
 
 async function initAdapter() {
   ensureDirs();
-  // Snapshot mode (Vercel): baked db file sits on a read-only FS, so native
-  // drivers (O_RDWR open → EROFS) are skipped — sql.js loads bytes, never persists.
+  // Snapshot mode (Vercel): baked db file sits on a read-only FS — skip better-sqlite3
+  // (native O_RDWR open → EROFS); node:sqlite opens readOnly, sql.js loads bytes.
   const readonly = process.env.DB_READONLY === "1";
   let adapter = null;
   if (readonly) {
-    adapter = await trySqlJs();
+    adapter = await tryNodeSqlite();
+    if (!adapter) adapter = await trySqlJs();
   } else {
     // Order per runtime:
     //   Bun:  bun:sqlite → sql.js

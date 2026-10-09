@@ -35,8 +35,13 @@ const nextConfig = {
     "*": ["./gitbook/**/*"]
   },
   // Bake the local data snapshot (db/data.sqlite …) into the function bundle —
-  // Vercel's FS is read-only at runtime, opened via DB_READONLY sql.js snapshot mode.
-  ...(isVercel ? { outputFileTracingIncludes: { "*": ["./db/**/*"] } } : {}),
+  // Vercel's FS is read-only at runtime, opened via DB_READONLY snapshot mode.
+  // sql.js wasm ships too: fallback driver when node:sqlite is unavailable.
+  ...(isVercel ? {
+    outputFileTracingIncludes: {
+      "*": ["./db/**/*", "./node_modules/sql.js/**/*.wasm"],
+    },
+  } : {}),
   images: {
     unoptimized: true
   },

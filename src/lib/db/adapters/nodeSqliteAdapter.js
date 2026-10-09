@@ -1,10 +1,11 @@
 // Built-in node:sqlite adapter — available in Node >= 22.5.0.
 // No native build, no npm install. API mirrors betterSqliteAdapter.
-import { PRAGMA_SQL } from "../schema.js";
+import { PRAGMA_SQL, PRAGMA_SQL_READONLY } from "../schema.js";
 
 const CHECKPOINT_INTERVAL_MS = 60 * 1000;
 
 export async function createNodeSqliteAdapter(filePath) {
+  const readonly = process.env.DB_READONLY === "1";
   // Suppress "ExperimentalWarning: SQLite is an experimental feature" from node:sqlite.
   // Stable enough for production use as of Node 22.x (RC quality).
   const origEmit = process.emit;
@@ -18,9 +19,9 @@ export async function createNodeSqliteAdapter(filePath) {
   // Dynamic import — fails on Node < 22.5 → driver.js falls back to sql.js
   const sqlite = await import("node:sqlite");
   const Database = sqlite.DatabaseSync;
-  const db = new Database(filePath);
+  const db = new Database(filePath, readonly ? { readOnly: true } : undefined);
 
-  db.exec(PRAGMA_SQL);
+  db.exec(readonly ? PRAGMA_SQL_READONLY : PRAGMA_SQL);
 
   const stmtCache = new Map();
   function prepare(sql) {
@@ -32,14 +33,14 @@ export async function createNodeSqliteAdapter(filePath) {
     return stmt;
   }
 
-  // Periodic WAL checkpoint to keep -wal/-shm small
-  const checkpointTimer = setInterval(() => {
+  // Periodic WAL checkpoint to keep -wal/-shm small — pointless on a read-only snapshot
+  const checkpointTimer = readonly ? null : setInterval(() => {
     try { db.exec("PRAGMA wal_checkpoint(TRUNCATE)"); } catch {}
   }, CHECKPOINT_INTERVAL_MS);
-  if (typeof checkpointTimer.unref === "function") checkpointTimer.unref();
+  if (checkpointTimer && typeof checkpointTimer.unref === "function") checkpointTimer.unref();
 
   function gracefulClose() {
-    try { db.exec("PRAGMA wal_checkpoint(TRUNCATE)"); } catch {}
+    if (!readonly) { try { db.exec("PRAGMA wal_checkpoint(TRUNCATE)"); } catch {} }
     try { stmtCache.clear(); } catch {}
     try { db.close(); } catch {}
   }

@@ -15,6 +15,17 @@ PRAGMA foreign_keys = ON;
 PRAGMA busy_timeout = 5000;
 `;
 
+// journal_mode needs a writable connection — it aborts the whole exec batch on a
+// read-only snapshot (Vercel), skipping the pragmas below it.
+export const PRAGMA_SQL_READONLY = `
+PRAGMA synchronous = NORMAL;
+PRAGMA temp_store = MEMORY;
+PRAGMA mmap_size = 30000000;
+PRAGMA cache_size = -64000;
+PRAGMA foreign_keys = ON;
+PRAGMA busy_timeout = 5000;
+`;
+
 // Declarative current schema. Used by syncSchemaFromTables() to
 // auto-add missing tables/columns/indexes after versioned migrations.
 // For destructive changes (drop/rename/type-change), write a migration file.
