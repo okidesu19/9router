@@ -1,29 +1,13 @@
-## Fix "[DB] No SQLite driver available" di Vercel
+## Diagnosis: opencode "fetch failed" di Vercel
 
-Akar masalah: `DB_READONLY=1` memaksa sql.js → WASM sql.js tidak ter-trace ke lambda Vercel → init gagal. Padahal `node:sqlite` (built-in Node ≥22.5) bisa buka file read-only.
+Penyebab paling mungkin: instance Vercel menjalankan build LAMA (sebelum fix `e4d69308`). Saat itu driver DB gagal total → `validateApiKey` di middleware (`dashboardGuard.js:165`) melempar tak tertangkap → SEMUA request `/v1` → 500 → opencode lihat koneksi putus = "fetch failed".
 
-### 1. `src/lib/db/driver.js`
-Readonly mode: coba `node:sqlite` dulu, baru sql.js fallback (better-sqlite3 tetap di-skip — native, open O_RDWR).
+Fix kode (insurance + kecepatan):
+1. `src/app/api/v1/models/route.js` — saat `IS_SERVERLESS`, lewati `LIVE_MODEL_RESOLVERS` + `fetchCompatibleModelIds` (outbound berurutan 5-30s/provider, tanpa `maxDuration` → Vercel kill function → timeout). Model list = snapshot DB + statis + alias — cukup untuk opencode.
+2. Tambah `export const maxDuration = 60;` di route itu (jaring pengaman).
+3. `dashboardGuard.js` — `validateApiKey` dibungkus try/catch → DB error jadi 503, bukan 500 middleware crash.
 
-### 2. `src/lib/db/adapters/nodeSqliteAdapter.js`
-Terima flag readonly:
-- `new DatabaseSync(filePath, { readOnly: true })` — open berhasil di FS read-only.
-- Pakai pragma read-only-safe (lihat #3) — `PRAGMA journal_mode = WAL` gagal di koneksi readonly → batch exec putus.
-- Lewati WAL checkpoint timer + shutdown checkpoint (tetap `db.close()`).
-
-### 3. `src/lib/db/schema.js`
-Tambah `PRAGMA_SQL_READONLY` = PRAGMA_SQL tanpa `journal_mode` (synchronous/temp_store/mmap/cache/foreign_keys aman di readonly).
-
-### 4. `next.config.mjs`
-Saat VERCEL, `outputFileTracingIncludes` tambah `./node_modules/sql.js/**/*.wasm` — fallback sql.js jalan kalau node:sqlite absen.
-
-### 5. `scripts/prepare-db-snapshot.mjs` (baru)
-Dijalankan build-time Vercel (FS masih writable saat build): kalau `VERCEL` + `db/data.sqlite` ada → buka rw, `PRAGMA wal_checkpoint(TRUNCATE)`, `PRAGMA journal_mode = DELETE`, tutup. Snapshot konsisten (WAL hot file tidak lagi dibutuhkan runtime). Idempotent, no-op lokal.
-Wire di `vercel.json`: `"buildCommand": "node scripts/prepare-db-snapshot.mjs && npm run build"`.
-
-### Verifikasi lokal
-1. `node scripts/prepare-db-snapshot.mjs` dengan env simulasi → journal jadi DELETE.
-2. `VERCEL=1 DATA_DIR=/tmp/9router DB_FILE=db/data.sqlite DB_READONLY=1 JWT_SECRET=x node custom-server.js --port 20141` → log `[DB] Driver: node:sqlite`, health 200, gated 503.
-3. `VERCEL=1 npm run build` tetap hijau.
-
-Firestore ditunda — tidak perlu bila error ini selesai (data lokal tetap snapshot, tulis di Vercel tetap diabaikan).
+Langkah user:
+1. Push commit `e4d69308` (dan commit fix baru) → redeploy Vercel.
+2. Pastikan ada API key di snapshot lokal (DB yang di-commit masih kosong — `apiKeys` kemungkinan 0 baris). Buat key di dashboard lokal lalu commit `db/data.sqlite` lagi ATAU set `REQUIRE_API_KEY` off di DB settings sebelum snapshot.
+3. Verifikasi: `curl https://<app>.vercel.app/v1/models -H "Authorization: Bearer <key>"` harus 200.

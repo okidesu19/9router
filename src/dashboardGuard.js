@@ -165,7 +165,13 @@ function extractApiKey(request) {
 async function hasValidApiKey(request) {
   const apiKey = extractApiKey(request);
   if (!apiKey) return false;
-  return await validateApiKey(apiKey);
+  try {
+    return await validateApiKey(apiKey);
+  } catch (e) {
+    // DB init error must not crash the middleware — every /v1 request would 500.
+    console.error("[auth] validateApiKey failed:", e?.message || e);
+    return false;
+  }
 }
 
 async function canAccessPublicLlmApi(request) {

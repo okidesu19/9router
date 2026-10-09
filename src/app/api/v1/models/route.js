@@ -8,6 +8,10 @@ import {
 } from "@/shared/constants/providers";
 import { getProviderConnections, getCombos, getCustomModels, getModelAliases } from "@/lib/localDb";
 import { getDisabledModels } from "@/lib/disabledModelsDb";
+import { IS_SERVERLESS } from "@/lib/serverless";
+
+// Safety net: sequential outbound provider calls can exceed the default function cap.
+export const maxDuration = 60;
 import { getKeyAccessContext, filterModelsListForKey } from "@/sse/services/keyAccess.js";
 import { resolveKiroModels } from "open-sse/services/kiroModels.js";
 import { resolveKimchiModels } from "open-sse/services/kimchiModels.js";
@@ -465,7 +469,9 @@ export async function buildModelsList(kindFilter, options = {}) {
           )
         : providerModels.map((model) => model.id);
 
-      if (isCompatibleProvider && rawModelIds.length === 0 && !skipDynamicFetch) {
+      // Serverless: outbound fetches (5-30s per provider, sequential) risk the
+      // function cap — snapshot DB + static list is enough for model discovery.
+      if (isCompatibleProvider && rawModelIds.length === 0 && !skipDynamicFetch && !IS_SERVERLESS) {
         rawModelIds = await fetchCompatibleModelIds(conn);
       }
 
@@ -473,7 +479,7 @@ export async function buildModelsList(kindFilter, options = {}) {
       // -thinking/-agentic variants per account). On failure, fall back to
       // whatever rawModelIds already holds.
       const liveResolver = LIVE_MODEL_RESOLVERS[providerId];
-      if (liveResolver && !hasExplicitEnabledModels) {
+      if (liveResolver && !hasExplicitEnabledModels && !IS_SERVERLESS) {
         try {
           const live = await liveResolver(conn);
           if (live?.models?.length) {
